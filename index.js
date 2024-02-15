@@ -48,6 +48,43 @@ async function filterTransactionsByFunctionNames(transactions, functionNames) {
   return filteredTransactions;
 }
 
+async function sendEmail(transaction, addressType, address) {
+  try {
+    // Create a SMTP transporter for MailHog
+    const transporter = nodemailer.createTransport({
+      host: "localhost",
+      port: 1025,
+      ignoreTLS: true,
+    });
+
+    // Construct email message with address type and validator indices
+    let text = `
+        Interesting Address: ${address}
+        Type of Address: ${addressType}
+        Block Number: ${transaction.blockNumber}
+        Transaction Hash: ${transaction.hash}
+        Type of Event/Transaction: ${
+          transaction.functionName
+            ? transaction.functionName.match(/^([^(]+)/)[1]?.trim()
+            : "transfer"
+        }
+      `;
+
+    const message = {
+      from: "your_email@example.com",
+      to: recipients.join(","),
+      subject: "New Ethereum Transaction Alert",
+      text: text,
+    };
+
+    // Send email
+    await transporter.sendMail(message);
+    console.log("Email sent successfully");
+  } catch (error) {
+    console.error("Error sending email:", error.message);
+  }
+}
+
 // Main function
 async function main() {
   console.log("Starting main function...");
@@ -79,6 +116,12 @@ async function main() {
     // Update the last processed block to the latest block
     if (filteredTransactions.length > 0) {
       lastProcessedBlocks[address] = filteredTransactions[0].blockNumber;
+    }
+
+    // Iterate over each transaction
+    for (const transaction of filteredTransactions) {
+      // Send email alert for the transaction with address type and validator status
+      await sendEmail(transaction, "normal", address);
     }
   }
 }
