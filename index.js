@@ -38,7 +38,7 @@ async function filterTransactionsByFunctionNames(transactions, functionNames) {
 
     if (functionNames.includes("transfer")) {
       if (!transaction.functionName) {
-        return true; // If "transfer" is provided, include transactions with empty input (functionNames oder name)
+        return true; // If "transfer" is provided, include transactions with empty input
       }
     }
 
