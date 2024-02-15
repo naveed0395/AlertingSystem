@@ -6,7 +6,7 @@ This is a system for alerting on relevant transactions or events happening on th
 
 Before running the system, ensure you have the following installed:
 
-- Docker: For running MailHog container (email testing tool for developers).
+- Docker: For running MailHog container (email testing tool for developers https://github.com/mailhog/MailHog).
 
 ## Setup
 
@@ -26,7 +26,7 @@ Before running the system, ensure you have the following installed:
 3. **Start the Container**: Run the following command in the project root directory to start the Mailhog container:
 
    ```
-   docker-compose up -d
+   docker compose up -d
    ```
 
 4. **Install dependencies**: Run the following command in the project root directory to install the dependencies:
@@ -43,9 +43,7 @@ Before running the system, ensure you have the following installed:
 
 ## Additional Notes
 
-- Ensure that the required ports (5432 for PostgreSQL and 25 for SMTP) are not being used by other applications on your system.
-
-- Customize the `is_validator_address` function in the Python script to check if addresses belong to validators based on your requirements.
+- Ensure that the required ports (1025 and 8025) are not being used by other applications on your system.
 
 - Adjust the SMTP server configuration(Mailhog) and the function `sendEmail` according to your SMTP server requirements.
 
