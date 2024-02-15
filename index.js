@@ -7,6 +7,12 @@ const Web3 = require("web3");
 // Ethereum addresses to monitor
 const addresses = process.env.ADDRESSES.split(",");
 
+// Preconfigured email recipients
+const recipients = process.env.RECIPIENTS.split(",");
+
+// Initialize Web3 with your Ethereum node URL or Infura endpoint
+const web3 = new Web3(process.env.YOUR_WEB3_PROVIDER_URL);
+
 // Store last processed block number for each address
 const lastProcessedBlocks = {};
 
@@ -48,7 +54,56 @@ async function filterTransactionsByFunctionNames(transactions, functionNames) {
   return filteredTransactions;
 }
 
-async function sendEmail(transaction, addressType, address) {
+// Function to check if an address is a smart contract
+async function isSmartContract(address) {
+  try {
+    // Retrieve the bytecode at the address
+    const bytecode = await web3.eth.getCode(address);
+
+    // Check if the bytecode is not empty
+    return bytecode !== "0x";
+  } catch (error) {
+    console.error("Error checking smart contract:", error.message);
+    return false;
+  }
+}
+
+// Function to retrieve validator indices from beaconcha.in API
+async function getValidator(address, transaction) {
+  try {
+    const validatorResponse = await axios.get(
+      `https://beaconcha.in/api/v1/validator/eth1/${address}`
+    );
+
+    if (validatorResponse.data.data.length > 0) {
+      for (const validator of validatorResponse.data.data) {
+        const depositsResponse = await axios.get(
+          `https://beaconcha.in/api/v1/validator/${validator.publickey}/deposits`
+        );
+
+        if (
+          depositsResponse.data.data.length > 0 &&
+          depositsResponse.data.data[0].tx_hash === transaction.hash
+        ) {
+          console.log(
+            `Transaction: ${transaction.hash} and txHash: ${depositsResponse.data.data[0].tx_hash}`
+          );
+          return validator;
+        }
+      }
+      console.log("No matching transaction found for any validator.");
+      return null;
+    }
+
+    console.log("No validator found for the given address.");
+    return null;
+  } catch (error) {
+    console.error("Error fetching validator data:", error.message);
+    return null;
+  }
+}
+
+async function sendEmail(transaction, addressType, address, validator = null) {
   try {
     // Create a SMTP transporter for MailHog
     const transporter = nodemailer.createTransport({
@@ -59,16 +114,22 @@ async function sendEmail(transaction, addressType, address) {
 
     // Construct email message with address type and validator indices
     let text = `
-        Interesting Address: ${address}
-        Type of Address: ${addressType}
-        Block Number: ${transaction.blockNumber}
-        Transaction Hash: ${transaction.hash}
-        Type of Event/Transaction: ${
-          transaction.functionName
-            ? transaction.functionName.match(/^([^(]+)/)[1]?.trim()
-            : "transfer"
-        }
-      `;
+      Interesting Address: ${address}
+      Type of Address: ${validator ? "validator" : addressType}
+      Block Number: ${transaction.blockNumber}
+      Transaction Hash: ${transaction.hash}
+      Type of Event/Transaction: ${
+        transaction.functionName
+          ? transaction.functionName.match(/^([^(]+)/)[1]?.trim()
+          : "transfer"
+      }
+    `;
+
+    if (validator) {
+      text += `\n\tValidator Index: ${
+        validator.validatorindex ? validator.validatorindex : "pending"
+      }  Public Key: ${validator.publickey}`;
+    }
 
     const message = {
       from: "your_email@example.com",
@@ -120,8 +181,21 @@ async function main() {
 
     // Iterate over each transaction
     for (const transaction of filteredTransactions) {
+      // Determine if the transaction address belongs to a smart contract
+      const isContract = await isSmartContract(address);
+
+      // Determine if the address is a validator
+      const validator = isContract
+        ? []
+        : await getValidator(address, transaction);
+
       // Send email alert for the transaction with address type and validator status
-      await sendEmail(transaction, "normal", address);
+      await sendEmail(
+        transaction,
+        `${isContract ? "smart contract" : "normal"}`,
+        address,
+        validator
+      );
     }
   }
 }
